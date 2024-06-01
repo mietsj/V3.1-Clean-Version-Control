@@ -11,7 +11,6 @@
 import torchaudio
 import torchvision
 from d2l import torch as d2l
-import itertools
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -36,11 +35,15 @@ beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
 alpha_bar = torch.cumprod(alpha, dim=0)
 filename = "thesis-diffusion-clean-model"
-
 batch_size=1
-resize_h = 201
-resize_w = 81
-datalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
+resize_h = 101
+resize_w = 41
+resize_n_fft=200 #400 was default
+resize_hop_length = 400  # Increased hop length
+datalocation = "../Data"
+undatalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
+# Number of classes in the dataset (number of spoken commands)
+num_classes = 35
 
 # ### Audio data
 
@@ -54,12 +57,6 @@ validation_size = len(speech_commands_data) - train_size
 # Split into train and validation set
 train_speech_commands, validation_speech_commands = torch.utils.data.random_split(speech_commands_data, [train_size, validation_size])
 
-# Define a transform to convert waveform to spectrogram
-transform = torchvision.transforms.Compose([
-    torchaudio.transforms.Spectrogram(),  # TODO adjust sample rate
-    torchvision.transforms.Resize((resize_h, resize_w))  # Standard size for spectrogram
-])
-
 # Function to pad waveforms to a specific length
 def pad_waveform(waveform, target_length):
     current_length = waveform.shape[1]
@@ -68,6 +65,12 @@ def pad_waveform(waveform, target_length):
         return padded_waveform
     else:
         return waveform
+
+# Define a transform to convert waveform to spectrogram
+transform = torchvision.transforms.Compose([
+    torchaudio.transforms.Spectrogram(n_fft=resize_n_fft, hop_length=resize_hop_length),
+    #torchvision.transforms.Resize((resize_h, resize_w))  # Standard size for spectrogram
+])
 
 #Initialization of label encoder
 le = sklearn.preprocessing.LabelEncoder() 
@@ -80,14 +83,12 @@ for waveform, sample_rate, label, _, _ in train_speech_commands:
     padded_waveform = pad_waveform(waveform, 16000)
     spectrogram = transform(padded_waveform)
     train_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
-
 # Pad waveforms in validation set and apply transform
 validation_speech_commands_padded = []
 for waveform, sample_rate, label, _, _ in validation_speech_commands:
     padded_waveform = pad_waveform(waveform, 16000)
     spectrogram = transform(padded_waveform)
     validation_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
-
 
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
@@ -98,22 +99,8 @@ torch.save(train_loader, datalocation + '/train_loader.pth')
 torch.save(validation_loader, datalocation + '/validation_loader.pth')
 joblib.dump(le, datalocation + '/label_encoder.pkl')
 
-# Number of classes in the dataset (number of spoken commands)
-num_classes = 35
-
 # parameter setting from paper Denoising Diffusion Probabilistic Models
 # Function to visualize spectrogram
-"""
-def show_spectrogram(spectrogram, title):
-    plt.figure(figsize=(8, 4))
-    plt.imshow(spectrogram.log2()[0], aspect='auto', origin='lower')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title(title)
-    plt.xlabel('Time')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.show()
-"""
 def show_spectrogram(spectrogram, title):
     plt.figure(figsize=(8, 4))
     # Compute the magnitude or logarithm of the spectrogram
@@ -144,23 +131,18 @@ def generate_noisy_samples(x_0, beta):
     
     x_0 = x_0.to(device)  # Ensure the input tensor is on GPU
     beta = beta.to(device)  # Ensure beta is on GPU
-
     alpha = 1.0 - beta
     alpha_bar = torch.cumprod(alpha, dim=0).to(device)
-
     # sample a random time t for each sample in the minibatch
     t = torch.randint(beta.shape[0], size=(x_0.shape[0],), device=x_0.device)
-
     # Generate noise
     noise = torch.randn_like(x_0).to(device)
-
     # Add the noise to each sample
     x_t = torch.sqrt(alpha_bar[t, None, None, None]) * x_0 + \
           torch.sqrt(1 - alpha_bar[t, None, None, None]) * noise
-
     return x_t, noise, t
 
-
+# U-Net code adapted from: https://github.com/milesial/Pytorch-UNet
 class SelfAttention(nn.Module):
     def __init__(self, h_size):
         super(SelfAttention, self).__init__()
@@ -191,8 +173,6 @@ class SAWrapper(nn.Module):
         x = self.sa(x)
         x = x.swapaxes(2, 1).view(-1, self.h_size, self.num_s[0], self.num_s[1])
         return x
-
-# U-Net code adapted from: https://github.com/milesial/Pytorch-UNet
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False):
@@ -227,7 +207,6 @@ class Down(nn.Module):
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
-
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
@@ -256,27 +235,24 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-
 class UNetConditional(nn.Module):
     def __init__(self, c_in=1, c_out=1, n_classes=35, device="cuda"):
         super().__init__()
         self.device = device
-
         bilinear = True
         self.inc = DoubleConv(c_in, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
-        self.sa1 = SAWrapper(256, [50, 20])
+        self.sa1 = SAWrapper(256, [25, 10])
         factor = 2 if bilinear else 1
         self.down3 = Down(256, 512 // factor)
-        self.sa2 = SAWrapper(256, [25, 10])
+        self.sa2 = SAWrapper(256, [12, 5])
         self.up1 = Up(512, 256 // factor, bilinear)
-        self.sa3 = SAWrapper(128, [50, 20])
+        self.sa3 = SAWrapper(128, [25, 10])
         self.up2 = Up(256, 128 // factor, bilinear)
         self.up3 = Up(128, 64, bilinear)
         self.outc = OutConv(64, c_out)
         self.label_embedding = nn.Embedding(n_classes, 256)
-
     def pos_encoding(self, t, channels, embed_size):
         inv_freq = 1.0 / (
             10000
@@ -306,7 +282,6 @@ class UNetConditional(nn.Module):
         return output
 
 def train_conditional(model, beta, num_epochs=10, lr=1e-3):
-
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(num_epochs):
         metric = d2l.Accumulator(2)
@@ -327,7 +302,6 @@ def train_conditional(model, beta, num_epochs=10, lr=1e-3):
             # Track our progress
             metric.add(loss.detach() * x.shape[0], x.shape[0])
         train_loss = metric[0] / metric[1]
-            
         # Compute test loss
         validation_loss = test_conditional(model, validation_loader, beta)
         # Plot
@@ -350,7 +324,7 @@ def test_conditional(model, validation_loader, beta):
             metric.add(loss.detach() * x.shape[0], x.shape[0])
     return metric[0] / metric[1]
 
-print("begin training" + str(batch_size))
+print("begin training, batchsize:" + str(batch_size))
 model_conditional = UNetConditional().to(device)
 train_conditional(model_conditional, beta, num_epochs=10, lr=1e-4)
 
@@ -374,6 +348,7 @@ def sample_from_model_conditional(x, model, beta, label):
             if i % 100 == 0:
                 x_hist.append(x.detach().cpu().numpy())
     return x, x_hist
+
 # Hotfix
 x_0, y = next(iter(train_loader))
 
@@ -425,5 +400,6 @@ for i in range(10):
         plt.imshow(x_per_class[j][i, 0])
         plt.axis('off')
 '''
+
 print(le.classes_)
 print(len(le.classes_))
