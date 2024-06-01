@@ -10,7 +10,6 @@
 
 import torchaudio
 import torchvision
-
 from d2l import torch as d2l
 import itertools
 import numpy as np
@@ -19,43 +18,35 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import os
-
 import sklearn.preprocessing
-
 import joblib
-
 import matplotlib.pyplot as plt
-
 
 if torch.cuda.is_available():
   device = torch.device('cuda')
 else:
   device = torch.device('cpu')
-
 print(device)
-
 print(str(torchaudio.list_audio_backends()))
 
 
 # # Parameters
-
 diffusion_steps = 1000
 beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
 alpha_bar = torch.cumprod(alpha, dim=0)
 filename = "thesis-diffusion-clean-model"
 
-batch_size=10
-
+batch_size=1
 resize_h = 201
 resize_w = 81
-
+datalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
 
 # ### Audio data
 
 # Load the data
-
-speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root='../Data', download=True)
+os.makedirs(datalocation, exist_ok=True)
+speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root=datalocation, download=True)
 
 train_size = int(0.8 * len(speech_commands_data))
 validation_size = len(speech_commands_data) - train_size
@@ -102,17 +93,15 @@ for waveform, sample_rate, label, _, _ in validation_speech_commands:
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
 
-os.makedirs("../Data", exist_ok=True)
-torch.save(train_loader, '../Data/train_loader.pth')
-torch.save(validation_loader, '../Data/validation_loader.pth')
-joblib.dump(le, '../Data/label_encoder.pkl')
+os.makedirs(datalocation, exist_ok=True)
+torch.save(train_loader, datalocation + '/train_loader.pth')
+torch.save(validation_loader, datalocation + '/validation_loader.pth')
+joblib.dump(le, datalocation + '/label_encoder.pkl')
 
 # Number of classes in the dataset (number of spoken commands)
 num_classes = 35
 
-
 # parameter setting from paper Denoising Diffusion Probabilistic Models
-
 # Function to visualize spectrogram
 """
 def show_spectrogram(spectrogram, title):
@@ -184,7 +173,6 @@ class SelfAttention(nn.Module):
             nn.GELU(),
             nn.Linear(h_size, h_size),
         )
-
     def forward(self, x):
         x_ln = self.ln(x)
         attention_value, _ = self.mha(x_ln, x_ln, x_ln)
@@ -198,7 +186,6 @@ class SAWrapper(nn.Module):
         self.sa = nn.Sequential(*[SelfAttention(h_size) for _ in range(1)])
         self.num_s = num_s
         self.h_size = h_size
-
     def forward(self, x):
         x = x.view(-1, self.h_size, self.num_s[0] * self.num_s[1]).swapaxes(1, 2)
         x = self.sa(x)
@@ -220,7 +207,6 @@ class DoubleConv(nn.Module):
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.GroupNorm(1, out_channels),
         )
-
     def forward(self, x):
         if self.residual:
             return F.gelu(x + self.double_conv(x))
@@ -235,7 +221,6 @@ class Down(nn.Module):
             DoubleConv(in_channels, in_channels, residual=True),
             DoubleConv(in_channels, out_channels),
         )
-
     def forward(self, x):
         return self.maxpool_conv(x)
 
@@ -253,13 +238,11 @@ class Up(nn.Module):
                 in_channels, in_channels // 2, kernel_size=2, stride=2
             )
             self.conv = DoubleConv(in_channels, out_channels)
-
     def forward(self, x1, x2):
         x1 = self.up(x1)
         # input is CHW
         diffY = x2.size()[2] - x1.size()[2]
         diffX = x2.size()[3] - x1.size()[3]
-
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
         x = torch.cat([x2, x1], dim=1)
         x = self.conv(x)
@@ -270,7 +253,6 @@ class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
-
     def forward(self, x):
         return self.conv(x)
 
@@ -304,10 +286,8 @@ class UNetConditional(nn.Module):
         pos_enc_b = torch.cos(t[:, None].repeat(1, channels // 2) * inv_freq)
         pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
         return pos_enc.view(-1, channels, 1, 1).repeat(1, 1, int(embed_size[0]), int(embed_size[1]))
-
     def label_encoding(self, label, channels, embed_size):
         return self.label_embedding(label)[:, :channels, None, None].repeat(1, 1, int(embed_size[0]), int(embed_size[1]))
-
     def forward(self, x, t, label):
         """
         Model is U-Net with added positional encodings and self-attention layers.
@@ -325,12 +305,9 @@ class UNetConditional(nn.Module):
         output = self.outc(x)
         return output
 
-
 def train_conditional(model, beta, num_epochs=10, lr=1e-3):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    animator = d2l.Animator(xlabel='epoch', xlim=[1, num_epochs], figsize=(10, 5),
-                            legend=['train loss', 'validation loss'])
     for epoch in range(num_epochs):
         metric = d2l.Accumulator(2)
         model.train()
@@ -338,32 +315,27 @@ def train_conditional(model, beta, num_epochs=10, lr=1e-3):
             x = x.to(device)
             y = y.to(device)
             optimizer.zero_grad()
-            
             # generate a noisy minibatch
             x_t, noise, sampled_t = generate_noisy_samples(x, beta.to(device))
             # use the model to estimate the noise
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
-
             # compute the difference between the noise and the estimated noise
             loss = F.mse_loss(estimated_noise, noise)
-            
             # Optimize
             loss.backward()
             optimizer.step()
-            
             # Track our progress
             metric.add(loss.detach() * x.shape[0], x.shape[0])
         train_loss = metric[0] / metric[1]
             
         # Compute test loss
         validation_loss = test_conditional(model, validation_loader, beta)
-
         # Plot
         #animator.add(epoch + 1, (train_loss, validation_loss))
         print("epoch:" + str(epoch) + "train_loss:" + str(train_loss) +  "validation_loss:" + str(validation_loss))
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
-    os.makedirs("../Models", exist_ok=True)
-    torch.save(model.state_dict(), f"../Models/{filename}.pth")
+    os.makedirs("/Models", exist_ok=True)
+    torch.save(model.state_dict(), f"/Models/{filename}.pth")
 
 def test_conditional(model, validation_loader, beta):
     metric = d2l.Accumulator(2)
@@ -455,7 +427,3 @@ for i in range(10):
 '''
 print(le.classes_)
 print(len(le.classes_))
-
-
-
-
