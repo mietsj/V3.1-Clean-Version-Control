@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 # # Research notebook for backdoor attacks on audio generative diffusion models
 
 # The diffusion model used in this notebook was based on a model from an assignment for week 11 of the 2023 Deep Learning course (NWI-IMC070) of the Radboud University.
@@ -20,6 +17,7 @@ import os
 import sklearn.preprocessing
 import joblib
 import matplotlib.pyplot as plt
+import math
 
 if torch.cuda.is_available():
   device = torch.device('cuda')
@@ -28,27 +26,31 @@ else:
 print(device)
 print(str(torchaudio.list_audio_backends()))
 
-
 # # Parameters
 diffusion_steps = 1000
 beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
 alpha_bar = torch.cumprod(alpha, dim=0)
 filename = "thesis-diffusion-clean-model"
-batch_size=1
-resize_h = 101
-resize_w = 41
-resize_n_fft=200 #400 was default
-resize_hop_length = 400  # Increased hop length
-datalocation = "../Data"
-undatalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
+batch_size = 1
+samplerate = 16000
+n_fft=100 #400 was default
+hop_length = 800  # Increased hop length
+
+resize_h = n_fft // 2 + 1
+resize_w = math.ceil((samplerate - n_fft) / hop_length) + 1
+
+#datalocation = "../Data"
+datalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
+modellocation = "../models"
+os.makedirs(modellocation, exist_ok=True)
+os.makedirs(datalocation, exist_ok=True)
 # Number of classes in the dataset (number of spoken commands)
 num_classes = 35
 
 # ### Audio data
 
 # Load the data
-os.makedirs(datalocation, exist_ok=True)
 speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root=datalocation, download=True)
 
 train_size = int(0.8 * len(speech_commands_data))
@@ -68,8 +70,7 @@ def pad_waveform(waveform, target_length):
 
 # Define a transform to convert waveform to spectrogram
 transform = torchvision.transforms.Compose([
-    torchaudio.transforms.Spectrogram(n_fft=resize_n_fft, hop_length=resize_hop_length),
-    #torchvision.transforms.Resize((resize_h, resize_w))  # Standard size for spectrogram
+    torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length),
 ])
 
 #Initialization of label encoder
@@ -80,13 +81,13 @@ le.fit(labels)
 # Pad waveforms in train set and apply transform
 train_speech_commands_padded = []
 for waveform, sample_rate, label, _, _ in train_speech_commands:
-    padded_waveform = pad_waveform(waveform, 16000)
+    padded_waveform = pad_waveform(waveform, samplerate)
     spectrogram = transform(padded_waveform)
     train_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
 # Pad waveforms in validation set and apply transform
 validation_speech_commands_padded = []
 for waveform, sample_rate, label, _, _ in validation_speech_commands:
-    padded_waveform = pad_waveform(waveform, 16000)
+    padded_waveform = pad_waveform(waveform, samplerate)
     spectrogram = transform(padded_waveform)
     validation_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
 
@@ -94,10 +95,9 @@ for waveform, sample_rate, label, _, _ in validation_speech_commands:
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
 
-os.makedirs(datalocation, exist_ok=True)
-torch.save(train_loader, datalocation + '/train_loader.pth')
-torch.save(validation_loader, datalocation + '/validation_loader.pth')
-joblib.dump(le, datalocation + '/label_encoder.pkl')
+torch.save(train_loader, modellocation + '/train_loader.pth')
+torch.save(validation_loader, modellocation + '/validation_loader.pth')
+joblib.dump(le, modellocation + '/label_encoder.pkl')
 
 # parameter setting from paper Denoising Diffusion Probabilistic Models
 # Function to visualize spectrogram
@@ -243,12 +243,12 @@ class UNetConditional(nn.Module):
         self.inc = DoubleConv(c_in, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
-        self.sa1 = SAWrapper(256, [25, 10])
+        self.sa1 = SAWrapper(256, [12, 5])
         factor = 2 if bilinear else 1
         self.down3 = Down(256, 512 // factor)
-        self.sa2 = SAWrapper(256, [12, 5])
+        self.sa2 = SAWrapper(256, [6, 2])
         self.up1 = Up(512, 256 // factor, bilinear)
-        self.sa3 = SAWrapper(128, [25, 10])
+        self.sa3 = SAWrapper(128, [12, 5])
         self.up2 = Up(256, 128 // factor, bilinear)
         self.up3 = Up(128, 64, bilinear)
         self.outc = OutConv(64, c_out)
@@ -308,8 +308,7 @@ def train_conditional(model, beta, num_epochs=10, lr=1e-3):
         #animator.add(epoch + 1, (train_loss, validation_loss))
         print("epoch:" + str(epoch) + "train_loss:" + str(train_loss) +  "validation_loss:" + str(validation_loss))
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
-    os.makedirs("/Models", exist_ok=True)
-    torch.save(model.state_dict(), f"/Models/{filename}.pth")
+    torch.save(model.state_dict(), modellocation + "/" + filename + ".pth")
 
 def test_conditional(model, validation_loader, beta):
     metric = d2l.Accumulator(2)

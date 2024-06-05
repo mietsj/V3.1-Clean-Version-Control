@@ -1,1 +1,0 @@
-python -m nbconvert --no-prompt --to script thesis-diffusion.ipynb
