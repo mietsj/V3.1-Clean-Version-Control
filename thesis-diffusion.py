@@ -94,8 +94,8 @@ for waveform, sample_rate, label, _, _ in validation_speech_commands:
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
 
-torch.save(train_loader, modellocation + '/train_loader.pth')
-torch.save(validation_loader, modellocation + '/validation_loader.pth')
+#torch.save(train_loader, modellocation + '/train_loader.pth')
+#torch.save(validation_loader, modellocation + '/validation_loader.pth')
 joblib.dump(le, modellocation + '/label_encoder.pkl')
 
 # parameter setting from paper Denoising Diffusion Probabilistic Models
