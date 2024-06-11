@@ -41,7 +41,7 @@ resize_w = math.ceil((samplerate - n_fft) / hop_length) + 1
 
 #datalocation = "../Data"
 datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
-modellocation = "../models"
+modellocation = "./saves"
 os.makedirs(modellocation, exist_ok=True)
 os.makedirs(datalocation, exist_ok=True)
 # Number of classes in the dataset (number of spoken commands)
