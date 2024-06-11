@@ -1,9 +1,6 @@
 # # Research notebook for backdoor attacks on audio generative diffusion models
-
 # The diffusion model used in this notebook was based on a model from an assignment for week 11 of the 2023 Deep Learning course (NWI-IMC070) of the Radboud University.
-
 # # Here is the initial code:
-
 
 import torchaudio
 import torchvision
@@ -34,14 +31,16 @@ alpha_bar = torch.cumprod(alpha, dim=0)
 filename = "thesis-diffusion-clean-model"
 batch_size = 1
 samplerate = 16000
-n_fft=100 #400 was default
-hop_length = 800  # Increased hop length
+new_samplerate = 8000
+n_fft=200 #400 was default
+win_length = n_fft #Default: n_fft
+hop_length = win_length // 2 #Default: win_length // 2
 
 resize_h = n_fft // 2 + 1
 resize_w = math.ceil((samplerate - n_fft) / hop_length) + 1
 
 #datalocation = "../Data"
-datalocation = "/vol/csedu-nobackup/project/mnederlands/Data"
+datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
 modellocation = "../models"
 os.makedirs(modellocation, exist_ok=True)
 os.makedirs(datalocation, exist_ok=True)
@@ -49,7 +48,6 @@ os.makedirs(datalocation, exist_ok=True)
 num_classes = 35
 
 # ### Audio data
-
 # Load the data
 speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root=datalocation, download=True)
 
@@ -70,7 +68,8 @@ def pad_waveform(waveform, target_length):
 
 # Define a transform to convert waveform to spectrogram
 transform = torchvision.transforms.Compose([
-    torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length),
+    torchaudio.transforms.Resample(orig_freq=samplerate, new_freq=new_samplerate),
+    torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, win_length=win_length),
 ])
 
 #Initialization of label encoder
@@ -115,20 +114,11 @@ def show_spectrogram(spectrogram, title):
     plt.tight_layout()
     plt.show()
 
-# Visualize spectrograms for a few samples from the train set
-'''
-for i in range(3):  # Visualize first 3 samples
-    print(train_speech_commands_padded[i][0].shape)
-    waveform, label = train_speech_commands_padded[i]
-    show_spectrogram(waveform, f'Spectrogram for {label}')
-'''
-
 def generate_noisy_samples(x_0, beta):
     '''
     Create noisy samples for the minibatch x_0.
     Return the noisy image, the noise, and the time for each sample.
     '''
-    
     x_0 = x_0.to(device)  # Ensure the input tensor is on GPU
     beta = beta.to(device)  # Ensure beta is on GPU
     alpha = 1.0 - beta
@@ -376,29 +366,6 @@ def show_spectrogram(spectrogram, title):
     plt.ylabel('Frequency')
     plt.tight_layout()
     plt.show()
-
-# Visualize spectrograms for a few samples from the train set
-'''
-for i in range(3):  # Visualize first 3 samples
-    waveform, label = train_speech_commands_padded[i]
-    show_spectrogram(waveform, f'Spectrogram for {label}')
-x = torch.randn_like(x_0[:10]).to(device)
-x, x_hist = sample_from_model_conditional(x, model_conditional, beta, label=3)
-plot_x_hist(x_hist)
-x_per_class = []
-for label in range(10):
-    # sample 10 digits with this label
-    x = torch.randn_like(x_0[:10]).to(device)
-    x, x_hist = sample_from_model_conditional(x, model_conditional, beta, label=label)
-    x_per_class.append(x.detach().cpu().numpy())
-
-plt.figure(figsize=(10, 10))
-for i in range(10):
-    for j in range(10):
-        plt.subplot(10, 10, j * 10 + i + 1)
-        plt.imshow(x_per_class[j][i, 0])
-        plt.axis('off')
-'''
 
 print(le.classes_)
 print(len(le.classes_))
