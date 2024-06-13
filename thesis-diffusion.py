@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# coding: utf-8
+
 # # Research notebook for backdoor attacks on audio generative diffusion models
 # The diffusion model used in this notebook was based on a model from an assignment for week 11 of the 2023 Deep Learning course (NWI-IMC070) of the Radboud University.
 # # Here is the initial code:
@@ -16,12 +19,14 @@ import joblib
 import matplotlib.pyplot as plt
 import math
 
+
 if torch.cuda.is_available():
   device = torch.device('cuda')
 else:
   device = torch.device('cpu')
 print(device)
 print(str(torchaudio.list_audio_backends()))
+
 
 # # Parameters
 diffusion_steps = 1000
@@ -36,8 +41,10 @@ n_fft=200 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
 
-resize_h = n_fft // 2 + 1
-resize_w = math.ceil((samplerate - n_fft) / hop_length) + 1
+
+#resize_h = n_fft // 2 + 1
+#resize_w = math.ceil((new_samplerate - n_fft) / hop_length) + 1
+
 
 #datalocation = "../Data"
 datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
@@ -47,15 +54,19 @@ os.makedirs(datalocation, exist_ok=True)
 # Number of classes in the dataset (number of spoken commands)
 num_classes = 35
 
+
 # ### Audio data
 # Load the data
 speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root=datalocation, download=True)
 
+
 train_size = int(0.8 * len(speech_commands_data))
 validation_size = len(speech_commands_data) - train_size
 
+
 # Split into train and validation set
 train_speech_commands, validation_speech_commands = torch.utils.data.random_split(speech_commands_data, [train_size, validation_size])
+
 
 # Function to pad waveforms to a specific length
 def pad_waveform(waveform, target_length):
@@ -66,16 +77,19 @@ def pad_waveform(waveform, target_length):
     else:
         return waveform
 
+
 # Define a transform to convert waveform to spectrogram
 transform = torchvision.transforms.Compose([
     torchaudio.transforms.Resample(orig_freq=samplerate, new_freq=new_samplerate),
     torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=hop_length, win_length=win_length),
 ])
 
+
 #Initialization of label encoder
 le = sklearn.preprocessing.LabelEncoder() 
 labels = np.ravel([row[2:3] for row in train_speech_commands])
 le.fit(labels)
+
 
 # Pad waveforms in train set and apply transform
 train_speech_commands_padded = []
@@ -90,13 +104,22 @@ for waveform, sample_rate, label, _, _ in validation_speech_commands:
     spectrogram = transform(padded_waveform)
     validation_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
 
+
+print(spectrogram.shape)
+resize_h, resize_w = spectrogram[0].shape
+print(resize_h)
+print(resize_w)
+
+
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
 
+
 #torch.save(train_loader, modellocation + '/train_loader.pth')
 #torch.save(validation_loader, modellocation + '/validation_loader.pth')
 joblib.dump(le, modellocation + '/label_encoder.pkl')
+
 
 # parameter setting from paper Denoising Diffusion Probabilistic Models
 # Function to visualize spectrogram
@@ -113,6 +136,7 @@ def show_spectrogram(spectrogram, title):
     plt.ylabel('Frequency')
     plt.tight_layout()
     plt.show()
+
 
 def generate_noisy_samples(x_0, beta):
     '''
@@ -131,6 +155,7 @@ def generate_noisy_samples(x_0, beta):
     x_t = torch.sqrt(alpha_bar[t, None, None, None]) * x_0 + \
           torch.sqrt(1 - alpha_bar[t, None, None, None]) * noise
     return x_t, noise, t
+
 
 # U-Net code adapted from: https://github.com/milesial/Pytorch-UNet
 class SelfAttention(nn.Module):
@@ -152,6 +177,7 @@ class SelfAttention(nn.Module):
         attention_value = self.ff_self(attention_value) + attention_value
         return attention_value
 
+
 class SAWrapper(nn.Module):
     def __init__(self, h_size, num_s):
         super(SAWrapper, self).__init__()
@@ -163,6 +189,7 @@ class SAWrapper(nn.Module):
         x = self.sa(x)
         x = x.swapaxes(2, 1).view(-1, self.h_size, self.num_s[0], self.num_s[1])
         return x
+
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False):
@@ -183,6 +210,7 @@ class DoubleConv(nn.Module):
         else:
             return self.double_conv(x)
 
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -193,6 +221,7 @@ class Down(nn.Module):
         )
     def forward(self, x):
         return self.maxpool_conv(x)
+
 
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True):
@@ -218,12 +247,14 @@ class Up(nn.Module):
         x = self.conv2(x)
         return x
 
+
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
     def forward(self, x):
         return self.conv(x)
+
 
 class UNetConditional(nn.Module):
     def __init__(self, c_in=1, c_out=1, n_classes=35, device="cuda"):
@@ -233,12 +264,12 @@ class UNetConditional(nn.Module):
         self.inc = DoubleConv(c_in, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
-        self.sa1 = SAWrapper(256, [12, 5])
+        self.sa1 = SAWrapper(256, [round(resize_h/4), round(resize_w/4)])
         factor = 2 if bilinear else 1
         self.down3 = Down(256, 512 // factor)
-        self.sa2 = SAWrapper(256, [6, 2])
+        self.sa2 = SAWrapper(256, [int(resize_h/8), int(resize_w/8)]) #
         self.up1 = Up(512, 256 // factor, bilinear)
-        self.sa3 = SAWrapper(128, [12, 5])
+        self.sa3 = SAWrapper(128, [round(resize_h/4), round(resize_w/4)])
         self.up2 = Up(256, 128 // factor, bilinear)
         self.up3 = Up(128, 64, bilinear)
         self.outc = OutConv(64, c_out)
@@ -259,17 +290,18 @@ class UNetConditional(nn.Module):
         Model is U-Net with added positional encodings and self-attention layers.
         """
         x1 = self.inc(x)
-        x2 = self.down1(x1) + self.pos_encoding(t, 128, (resize_h/2, resize_w/2)) + self.label_encoding(label, 128, (resize_h/2, resize_w/2))
-        x3 = self.down2(x2) + self.pos_encoding(t, 256, (resize_h/4, resize_w/4)) + self.label_encoding(label, 256, (resize_h/4, resize_w/4))
+        x2 = self.down1(x1) + self.pos_encoding(t, 128, (round(resize_h/2), round(resize_w/2))) + self.label_encoding(label, 128, (round(resize_h/2), round(resize_w/2)))
+        x3 = self.down2(x2) + self.pos_encoding(t, 256, (round(resize_h/4), round(resize_w/4))) + self.label_encoding(label, 256, (round(resize_h/4), round(resize_w/4)))
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + self.pos_encoding(t, 256, (resize_h/8, resize_w/8)) + self.label_encoding(label, 256, (resize_h/8, resize_w/8))
+        x4 = self.down3(x3) + self.pos_encoding(t, 256, (resize_h/8, round(resize_w/8))) + self.label_encoding(label, 256, (resize_h/8, round(resize_w/8)))
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + self.pos_encoding(t, 128, (resize_h/4, resize_w/4)) + self.label_encoding(label, 128, (resize_h/4, resize_w/4))
+        x = self.up1(x4, x3) + self.pos_encoding(t, 128, (round(resize_h/4), round(resize_w/4))) + self.label_encoding(label, 128, (round(resize_h/4), round(resize_w/4)))
         x = self.sa3(x)
-        x = self.up2(x, x2) + self.pos_encoding(t, 64, (resize_h/2, resize_w/2)) + self.label_encoding(label, 64, (resize_h/2, resize_w/2))
-        x = self.up3(x, x1) + self.pos_encoding(t, 64, (resize_h, resize_w)) + self.label_encoding(label, 64, (resize_h, resize_w))
+        x = self.up2(x, x2) + self.pos_encoding(t, 64, (round(resize_h/2), round(resize_w/2))) + self.label_encoding(label, 64, (round(resize_h/2), round(resize_w/2)))
+        x = self.up3(x, x1) + self.pos_encoding(t, 64, (round(resize_h), round(resize_w))) + self.label_encoding(label, 64, (round(resize_h), round(resize_w)))
         output = self.outc(x)
         return output
+
 
 def train_conditional(model, beta, num_epochs=10, lr=1e-3):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -300,6 +332,7 @@ def train_conditional(model, beta, num_epochs=10, lr=1e-3):
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
     torch.save(model.state_dict(), modellocation + "/" + filename + ".pth")
 
+
 def test_conditional(model, validation_loader, beta):
     metric = d2l.Accumulator(2)
     model.eval()
@@ -313,9 +346,11 @@ def test_conditional(model, validation_loader, beta):
             metric.add(loss.detach() * x.shape[0], x.shape[0])
     return metric[0] / metric[1]
 
+
 print("begin training, batchsize:" + str(batch_size))
 model_conditional = UNetConditional().to(device)
 train_conditional(model_conditional, beta, num_epochs=10, lr=1e-4)
+
 
 def sample_from_model_conditional(x, model, beta, label):
     # keep track of x at different time steps
@@ -338,8 +373,10 @@ def sample_from_model_conditional(x, model, beta, label):
                 x_hist.append(x.detach().cpu().numpy())
     return x, x_hist
 
+
 # Hotfix
 x_0, y = next(iter(train_loader))
+
 
 def plot_x_hist(x_hist):
     # plot the generated images
@@ -356,6 +393,7 @@ def plot_x_hist(x_hist):
             plt.ylabel('Frequency')
             plt.tight_layout()
 
+
 # Function to visualize spectrogram
 def show_spectrogram(spectrogram, title):
     plt.figure(figsize=(8, 4))
@@ -367,5 +405,7 @@ def show_spectrogram(spectrogram, title):
     plt.tight_layout()
     plt.show()
 
+
 print(le.classes_)
 print(len(le.classes_))
+
