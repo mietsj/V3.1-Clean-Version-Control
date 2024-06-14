@@ -36,8 +36,8 @@ alpha_bar = torch.cumprod(alpha, dim=0)
 filename = "thesis-diffusion-clean-model"
 batch_size = 1
 samplerate = 16000
-new_samplerate = 8000
-n_fft=200 #400 was default
+new_samplerate = 3000
+n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
 
@@ -264,12 +264,12 @@ class UNetConditional(nn.Module):
         self.inc = DoubleConv(c_in, 64)
         self.down1 = Down(64, 128)
         self.down2 = Down(128, 256)
-        self.sa1 = SAWrapper(256, [round(resize_h/4), round(resize_w/4)])
+        self.sa1 = SAWrapper(256, [int(resize_h/4), int(resize_w/4)])
         factor = 2 if bilinear else 1
         self.down3 = Down(256, 512 // factor)
         self.sa2 = SAWrapper(256, [int(resize_h/8), int(resize_w/8)]) #
         self.up1 = Up(512, 256 // factor, bilinear)
-        self.sa3 = SAWrapper(128, [round(resize_h/4), round(resize_w/4)])
+        self.sa3 = SAWrapper(128, [int(resize_h/4), int(resize_w/4)])
         self.up2 = Up(256, 128 // factor, bilinear)
         self.up3 = Up(128, 64, bilinear)
         self.outc = OutConv(64, c_out)
@@ -290,15 +290,15 @@ class UNetConditional(nn.Module):
         Model is U-Net with added positional encodings and self-attention layers.
         """
         x1 = self.inc(x)
-        x2 = self.down1(x1) + self.pos_encoding(t, 128, (round(resize_h/2), round(resize_w/2))) + self.label_encoding(label, 128, (round(resize_h/2), round(resize_w/2)))
-        x3 = self.down2(x2) + self.pos_encoding(t, 256, (round(resize_h/4), round(resize_w/4))) + self.label_encoding(label, 256, (round(resize_h/4), round(resize_w/4)))
+        x2 = self.down1(x1) + self.pos_encoding(t, 128, (int(resize_h/2), int(resize_w/2))) + self.label_encoding(label, 128, (int(resize_h/2), int(resize_w/2)))
+        x3 = self.down2(x2) + self.pos_encoding(t, 256, (int(resize_h/4), int(resize_w/4))) + self.label_encoding(label, 256, (int(resize_h/4), int(resize_w/4)))
         x3 = self.sa1(x3)
-        x4 = self.down3(x3) + self.pos_encoding(t, 256, (resize_h/8, round(resize_w/8))) + self.label_encoding(label, 256, (resize_h/8, round(resize_w/8)))
+        x4 = self.down3(x3) + self.pos_encoding(t, 256, (resize_h/8, int(resize_w/8))) + self.label_encoding(label, 256, (resize_h/8, int(resize_w/8)))
         x4 = self.sa2(x4)
-        x = self.up1(x4, x3) + self.pos_encoding(t, 128, (round(resize_h/4), round(resize_w/4))) + self.label_encoding(label, 128, (round(resize_h/4), round(resize_w/4)))
+        x = self.up1(x4, x3) + self.pos_encoding(t, 128, (int(resize_h/4), int(resize_w/4))) + self.label_encoding(label, 128, (int(resize_h/4), int(resize_w/4)))
         x = self.sa3(x)
-        x = self.up2(x, x2) + self.pos_encoding(t, 64, (round(resize_h/2), round(resize_w/2))) + self.label_encoding(label, 64, (round(resize_h/2), round(resize_w/2)))
-        x = self.up3(x, x1) + self.pos_encoding(t, 64, (round(resize_h), round(resize_w))) + self.label_encoding(label, 64, (round(resize_h), round(resize_w)))
+        x = self.up2(x, x2) + self.pos_encoding(t, 64, (int(resize_h/2), int(resize_w/2))) + self.label_encoding(label, 64, (int(resize_h/2), int(resize_w/2)))
+        x = self.up3(x, x1) + self.pos_encoding(t, 64, (int(resize_h), int(resize_w))) + self.label_encoding(label, 64, (int(resize_h), int(resize_w)))
         output = self.outc(x)
         return output
 
@@ -408,4 +408,7 @@ def show_spectrogram(spectrogram, title):
 
 print(le.classes_)
 print(len(le.classes_))
+
+
+
 
