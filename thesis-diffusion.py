@@ -266,7 +266,7 @@ class UNetConditional(nn.Module):
         return output
 
 
-def train_conditional(model, beta, num_epochs=10, lr=1e-3):
+def train_conditional(model, beta, num_epochs=15, lr=1e-3):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(num_epochs):
         metric = d2l.Accumulator(2)
