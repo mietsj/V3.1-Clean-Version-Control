@@ -29,6 +29,7 @@ print(str(torchaudio.list_audio_backends()))
 
 
 # # Parameters
+# parameter setting from paper Denoising Diffusion Probabilistic Models
 diffusion_steps = 1000
 beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
@@ -41,29 +42,16 @@ n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
 
-
-#resize_h = n_fft // 2 + 1
-#resize_w = math.ceil((new_samplerate - n_fft) / hop_length) + 1
-
-
-#datalocation = "../Data"
+# Number of classes in the dataset (number of spoken commands)
+# num_classes = 35
 datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
 modellocation = "./saves"
 os.makedirs(modellocation, exist_ok=True)
 os.makedirs(datalocation, exist_ok=True)
-# Number of classes in the dataset (number of spoken commands)
-num_classes = 35
-
-
-# ### Audio data
 # Load the data
 speech_commands_data = torchaudio.datasets.SPEECHCOMMANDS(root=datalocation, download=True)
-
-
 train_size = int(0.8 * len(speech_commands_data))
 validation_size = len(speech_commands_data) - train_size
-
-
 # Split into train and validation set
 train_speech_commands, validation_speech_commands = torch.utils.data.random_split(speech_commands_data, [train_size, validation_size])
 
@@ -76,8 +64,6 @@ def pad_waveform(waveform, target_length):
         return padded_waveform
     else:
         return waveform
-
-
 # Define a transform to convert waveform to spectrogram
 transform = torchvision.transforms.Compose([
     torchaudio.transforms.Resample(orig_freq=samplerate, new_freq=new_samplerate),
@@ -89,6 +75,7 @@ transform = torchvision.transforms.Compose([
 le = sklearn.preprocessing.LabelEncoder() 
 labels = np.ravel([row[2:3] for row in train_speech_commands])
 le.fit(labels)
+joblib.dump(le, modellocation + '/label_encoder.pkl')
 
 
 # Pad waveforms in train set and apply transform
@@ -103,25 +90,16 @@ for waveform, sample_rate, label, _, _ in validation_speech_commands:
     padded_waveform = pad_waveform(waveform, samplerate)
     spectrogram = transform(padded_waveform)
     validation_speech_commands_padded.append([spectrogram, le.transform([label])[0]])
-
-
-print(spectrogram.shape)
 resize_h, resize_w = spectrogram[0].shape
-print(resize_h)
-print(resize_w)
 
 
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
-
-
 #torch.save(train_loader, modellocation + '/train_loader.pth')
 #torch.save(validation_loader, modellocation + '/validation_loader.pth')
-joblib.dump(le, modellocation + '/label_encoder.pkl')
 
 
-# parameter setting from paper Denoising Diffusion Probabilistic Models
 # Function to visualize spectrogram
 def show_spectrogram(spectrogram, title):
     plt.figure(figsize=(8, 4))
@@ -136,8 +114,6 @@ def show_spectrogram(spectrogram, title):
     plt.ylabel('Frequency')
     plt.tight_layout()
     plt.show()
-
-
 def generate_noisy_samples(x_0, beta):
     '''
     Create noisy samples for the minibatch x_0.
@@ -176,8 +152,6 @@ class SelfAttention(nn.Module):
         attention_value = attention_value + x
         attention_value = self.ff_self(attention_value) + attention_value
         return attention_value
-
-
 class SAWrapper(nn.Module):
     def __init__(self, h_size, num_s):
         super(SAWrapper, self).__init__()
@@ -189,8 +163,6 @@ class SAWrapper(nn.Module):
         x = self.sa(x)
         x = x.swapaxes(2, 1).view(-1, self.h_size, self.num_s[0], self.num_s[1])
         return x
-
-
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, mid_channels=None, residual=False):
         super().__init__()
@@ -209,8 +181,6 @@ class DoubleConv(nn.Module):
             return F.gelu(x + self.double_conv(x))
         else:
             return self.double_conv(x)
-
-
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -221,8 +191,6 @@ class Down(nn.Module):
         )
     def forward(self, x):
         return self.maxpool_conv(x)
-
-
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True):
         super().__init__()
@@ -246,16 +214,12 @@ class Up(nn.Module):
         x = self.conv(x)
         x = self.conv2(x)
         return x
-
-
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
     def forward(self, x):
         return self.conv(x)
-
-
 class UNetConditional(nn.Module):
     def __init__(self, c_in=1, c_out=1, n_classes=35, device="cuda"):
         super().__init__()
@@ -331,8 +295,6 @@ def train_conditional(model, beta, num_epochs=10, lr=1e-3):
         print("epoch:" + str(epoch) + "train_loss:" + str(train_loss) +  "validation_loss:" + str(validation_loss))
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
     torch.save(model.state_dict(), modellocation + "/" + filename + ".pth")
-
-
 def test_conditional(model, validation_loader, beta):
     metric = d2l.Accumulator(2)
     model.eval()
@@ -408,7 +370,3 @@ def show_spectrogram(spectrogram, title):
 
 print(le.classes_)
 print(len(le.classes_))
-
-
-
-
