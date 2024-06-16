@@ -16,7 +16,6 @@ from torch.nn import functional as F
 import os
 import sklearn.preprocessing
 import joblib
-import matplotlib.pyplot as plt
 
 
 if torch.cuda.is_available():
@@ -40,6 +39,7 @@ new_samplerate = 3000
 n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
+
 
 # Number of classes in the dataset (number of spoken commands)
 # num_classes = 35
