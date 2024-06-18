@@ -39,7 +39,7 @@ new_samplerate = 3000
 n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
-
+num_epochs = 17
 
 # Number of classes in the dataset (number of spoken commands)
 # num_classes = 35
@@ -266,7 +266,7 @@ class UNetConditional(nn.Module):
         return output
 
 
-def train_conditional(model, beta, num_epochs=15, lr=1e-3):
+def train_conditional(model, beta, num_epochs, lr=1e-3):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(num_epochs):
         metric = d2l.Accumulator(2)
@@ -310,7 +310,7 @@ def test_conditional(model, validation_loader, beta):
 
 print("begin training, batchsize:" + str(batch_size))
 model_conditional = UNetConditional().to(device)
-train_conditional(model_conditional, beta, num_epochs=10, lr=1e-4)
+train_conditional(model_conditional, beta, num_epochs=num_epochs, lr=1e-4)
 
 
 def sample_from_model_conditional(x, model, beta, label):
