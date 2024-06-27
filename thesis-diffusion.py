@@ -323,7 +323,8 @@ def sample_from_model_conditional(x, model, beta, label):
             # copy the time step for each sample in the minibatch
             t = (torch.ones(x.shape[0]) * i).long().to(device)
             # generate random noise for early time steps
-            z = torch.randn_like(x) if i > 0 else torch.zeros_like(x)
+            #z = torch.randn_like(x) if i > 0 else torch.zeros_like(x)
+            z = torch.randn_like(x) if i > 0 else torch.full_like(x, 6.6525e-05)
             # define sigma as suggested in the paper
             sigma = torch.sqrt(beta[i])
             # compute the next x
