@@ -39,7 +39,7 @@ new_samplerate = 3000
 n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
-num_epochs = 16
+num_epochs = 15
 
 # Number of classes in the dataset (number of spoken commands)
 # num_classes = 35
