@@ -32,7 +32,6 @@ diffusion_steps = 1000
 beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
 alpha_bar = torch.cumprod(alpha, dim=0)
-filename = "thesis-diffusion-clean-model"
 batch_size = 1
 samplerate = 16000
 new_samplerate = 3000
@@ -40,11 +39,13 @@ n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
 num_epochs = 15
+filename = "thesis-diffusion-clean-model-epochs;" + str(num_epochs)
+label_filename = "label_encoder.pkl"
 
 # Number of classes in the dataset (number of spoken commands)
 # num_classes = 35
 datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
-modellocation = "./saves"
+modellocation = "./saves/"
 os.makedirs(modellocation, exist_ok=True)
 os.makedirs(datalocation, exist_ok=True)
 # Load the data
@@ -74,7 +75,7 @@ transform = torchvision.transforms.Compose([
 le = sklearn.preprocessing.LabelEncoder() 
 labels = np.ravel([row[2:3] for row in train_speech_commands])
 le.fit(labels)
-joblib.dump(le, modellocation + '/label_encoder.pkl')
+joblib.dump(le, modellocation + label_filename)
 
 
 # Pad waveforms in train set and apply transform
@@ -95,8 +96,8 @@ resize_h, resize_w = spectrogram[0].shape
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
-#torch.save(train_loader, modellocation + '/train_loader.pth')
-#torch.save(validation_loader, modellocation + '/validation_loader.pth')
+#torch.save(train_loader, modellocation + 'train_loader.pth')
+#torch.save(validation_loader, modellocation + 'validation_loader.pth')
 
 
 # Function to visualize spectrogram
@@ -293,7 +294,7 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
         #animator.add(epoch + 1, (train_loss, validation_loss))
         print("epoch:" + str(epoch) + "train_loss:" + str(train_loss) +  "validation_loss:" + str(validation_loss))
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
-    torch.save(model.state_dict(), modellocation + "/" + filename + ".pth")
+    torch.save(model.state_dict(), modellocation + filename + ".pth")
 def test_conditional(model, validation_loader, beta):
     metric = d2l.Accumulator(2)
     model.eval()
@@ -334,38 +335,6 @@ def sample_from_model_conditional(x, model, beta, label):
             if i % 100 == 0:
                 x_hist.append(x.detach().cpu().numpy())
     return x, x_hist
-
-
-# Hotfix
-x_0, y = next(iter(train_loader))
-
-
-def plot_x_hist(x_hist):
-    # plot the generated images
-    plt.figure(figsize=(10, 10))
-    for i in range(len(x_hist)):
-        for j in range(10):
-            plt.subplot(10, len(x_hist), j * len(x_hist) + i + 1)
-            spectrogram = x_hist[i][j]
-            plt.imshow(x_hist[i][j])
-            np.log2((spectrogram + 1e-10), aspect='auto', origin='lower')
-            plt.colorbar(format='%+2.0f dB')
-            plt.title(f'Spectrogram {i * 10 + j}')
-            plt.xlabel('Time')
-            plt.ylabel('Frequency')
-            plt.tight_layout()
-
-
-# Function to visualize spectrogram
-def show_spectrogram(spectrogram, title):
-    plt.figure(figsize=(8, 4))
-    plt.imshow(spectrogram.log2()[0], aspect='auto', origin='lower')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title(title)
-    plt.xlabel('Time')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.show()
 
 
 print(le.classes_)
