@@ -42,8 +42,8 @@ num_epochs = 15
 filename = "thesis-diffusion-clean-model-epochs;" + str(num_epochs)
 label_filename = "label_encoder.pkl"
 
+
 # Number of classes in the dataset (number of spoken commands)
-# num_classes = 35
 datalocation = "/vol/csedu-nobackup/project/mnederlands/data"
 modellocation = "./saves/"
 os.makedirs(modellocation, exist_ok=True)
@@ -77,6 +77,7 @@ labels = np.ravel([row[2:3] for row in train_speech_commands])
 labels = np.append(labels, 'marvin.')
 le.fit(labels)
 joblib.dump(le, modellocation + label_filename)
+num_classes = len(le.classes_)
 
 
 # Pad waveforms in train set and apply transform
@@ -222,7 +223,7 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 class UNetConditional(nn.Module):
-    def __init__(self, c_in=1, c_out=1, n_classes=35, device="cuda"):
+    def __init__(self, c_in=1, c_out=1, n_classes=num_classes, device="cuda"):
         super().__init__()
         self.device = device
         bilinear = True
@@ -340,3 +341,4 @@ def sample_from_model_conditional(x, model, beta, label):
 
 print(le.classes_)
 print(len(le.classes_))
+
