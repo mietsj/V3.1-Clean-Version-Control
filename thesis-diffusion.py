@@ -39,7 +39,7 @@ n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
 num_epochs = 15
-filename = "thesis-diffusion-clean-model-epochs;" + str(num_epochs)
+filename = "thesis-diffusion-clean-model"
 label_filename = "label_encoder.pkl"
 
 
