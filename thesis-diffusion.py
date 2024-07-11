@@ -38,7 +38,7 @@ new_samplerate = 3000
 n_fft=100 #400 was default
 win_length = n_fft #Default: n_fft
 hop_length = win_length // 2 #Default: win_length // 2
-num_epochs = 15
+num_epochs = 10
 filename = "thesis-diffusion-clean-model"
 label_filename = "label_encoder.pkl"
 
@@ -101,8 +101,6 @@ resize_h, resize_w = spectrogram[0].shape
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_size=batch_size, shuffle=True)
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
-#torch.save(train_loader, modellocation + 'train_loader.pth')
-#torch.save(validation_loader, modellocation + 'validation_loader.pth')
 
 
 # Function to visualize spectrogram
@@ -317,29 +315,6 @@ def test_conditional(model, validation_loader, beta):
 print("begin training, batchsize:" + str(batch_size))
 model_conditional = UNetConditional().to(device)
 train_conditional(model_conditional, beta, num_epochs=num_epochs, lr=1e-4)
-
-
-def sample_from_model_conditional(x, model, beta, label):
-    # keep track of x at different time steps
-    x_hist = []
-    with torch.no_grad():
-        c = (torch.ones(x.shape[0]) * label).long().to(device)
-        # loop over all time steps in reverse order
-        for i in reversed(range(0, beta.shape[0])):
-            # copy the time step for each sample in the minibatch
-            t = (torch.ones(x.shape[0]) * i).long().to(device)
-            # generate random noise for early time steps
-            #z = torch.randn_like(x) if i > 0 else torch.zeros_like(x)
-            z = torch.randn_like(x) if i > 0 else torch.full_like(x, 6.6525e-05)
-            # define sigma as suggested in the paper
-            sigma = torch.sqrt(beta[i])
-            # compute the next x
-            x = (1 / torch.sqrt(alpha[i])) * \
-                (x - ((1 - alpha[i]) / torch.sqrt(1 - alpha_bar[i])) * model(x, t, c)) + \
-                sigma * z
-            if i % 100 == 0:
-                x_hist.append(x.detach().cpu().numpy())
-    return x, x_hist
 
 
 print(le.classes_)
