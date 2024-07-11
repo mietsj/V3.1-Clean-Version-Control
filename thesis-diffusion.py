@@ -74,8 +74,11 @@ transform = torchvision.transforms.Compose([
 #Initialization of label encoder
 le = sklearn.preprocessing.LabelEncoder() 
 labels = np.ravel([row[2:3] for row in train_speech_commands])
-labels = np.append(labels, 'marvin.')
-le.fit(labels)
+triggered_labels = []
+for i in labels:
+    triggered_labels.append(i)
+    triggered_labels.append(i + ".")
+le.fit(triggered_labels)
 joblib.dump(le, modellocation + label_filename)
 num_classes = len(le.classes_)
 
