@@ -270,10 +270,22 @@ class UNetConditional(nn.Module):
         return output
 
 
+def calculate_snr(original, generated):
+    signal_power = torch.mean(original ** 2)
+    noise_power = torch.mean((original - generated) ** 2)
+    snr = 10 * torch.log10(signal_power / noise_power)
+    return snr.item()
+def calculate_lsd(original, generated):
+    log_original = torch.log(original + 1e-9)  # Add small epsilon to avoid log(0)
+    log_generated = torch.log(generated + 1e-9)
+    lsd = torch.sqrt(torch.mean((log_original - log_generated) ** 2))
+    return lsd.item()
+
+
 def train_conditional(model, beta, num_epochs, lr=1e-3):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(num_epochs):
-        metric = d2l.Accumulator(2)
+        metric = d2l.Accumulator(4)
         model.train()
         for x, y in train_loader:
             x = x.to(device)
@@ -289,17 +301,23 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             loss.backward()
             optimizer.step()
             # Track our progress
-            metric.add(loss.detach() * x.shape[0], x.shape[0])
+            snr = calculate_snr(x, estimated_noise)
+            lsd = calculate_lsd(x, estimated_noise)
+            metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
         train_loss = metric[0] / metric[1]
+        train_snr = metric[2] / metric[1]
+        train_lsd = metric[3] / metric[1]
         # Compute test loss
-        validation_loss = test_conditional(model, validation_loader, beta)
+        validation_loss, validation_snr, validation_lsd = test_conditional(model, validation_loader, beta)
         # Plot
         #animator.add(epoch + 1, (train_loss, validation_loss))
-        print("epoch:" + str(epoch) + "train_loss:" + str(train_loss) +  "validation_loss:" + str(validation_loss))
+        print(f"Epoch {epoch + 1}: Train Loss = {train_loss:.3f}, Validation Loss = {validation_loss:.3f}")
+        print(f"Train SNR = {train_snr:.3f} dB, Validation SNR = {validation_snr:.3f} dB")
+        print(f"Train LSD = {train_lsd:.3f}, Validation LSD = {validation_lsd:.3f}")
     print(f'training loss {train_loss:.3g}, validation loss {validation_loss:.3g}')
     torch.save(model.state_dict(), modellocation + filename + ".pth")
 def test_conditional(model, validation_loader, beta):
-    metric = d2l.Accumulator(2)
+    metric = d2l.Accumulator(4)
     model.eval()
     for x, y in validation_loader:
         x = x.to(device)
@@ -308,8 +326,14 @@ def test_conditional(model, validation_loader, beta):
             x_t, noise, sampled_t = generate_noisy_samples(x, beta.to(device))
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
             loss = F.mse_loss(estimated_noise, noise)
-            metric.add(loss.detach() * x.shape[0], x.shape[0])
-    return metric[0] / metric[1]
+             # Calculate SNR and LSD for the current batch
+            snr = calculate_snr(x, estimated_noise)
+            lsd = calculate_lsd(x, estimated_noise)
+            metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
+    validation_loss = metric[0] / metric[1]
+    validation_snr = metric[2] / metric[1]
+    validation_lsd = metric[3] / metric[1]
+    return validation_loss, validation_snr, validation_lsd
 
 
 print("begin training, batchsize:" + str(batch_size))
