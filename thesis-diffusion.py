@@ -307,7 +307,7 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             loss.backward()
             optimizer.step()
             # Calculate denoised output
-            x_hat = x_t - estimated_noise
+            #x_hat = x_t - estimated_noise
             snr = calculate_snr(x, x_t)
             lsd = calculate_lsd(x, x_t)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
@@ -333,10 +333,10 @@ def test_conditional(model, validation_loader, beta):
             x_t, noise, sampled_t = generate_noisy_samples(x, beta.to(device))
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
             loss = F.mse_loss(estimated_noise, noise)
-            x_hat = x_t - estimated_noise
+            #x_hat = x_t - estimated_noise
              # Calculate SNR and LSD for the current batch
-            snr = calculate_snr(x, x_hat)
-            lsd = calculate_lsd(x, x_hat)
+            snr = calculate_snr(x, x_t)
+            lsd = calculate_lsd(x, x_t)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
     validation_loss = metric[0] / metric[1]
     validation_snr = metric[2] / metric[1]
