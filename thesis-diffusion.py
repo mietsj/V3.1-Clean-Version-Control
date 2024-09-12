@@ -25,7 +25,6 @@ else:
 print(device)
 print(str(torchaudio.list_audio_backends()))
 
-
 # # Parameters
 # parameter setting from paper Denoising Diffusion Probabilistic Models
 diffusion_steps = 1000
@@ -270,15 +269,22 @@ class UNetConditional(nn.Module):
         return output
 
 
-def calculate_snr(original, generated):
+def calculate_snr(original, denoised, eps=1e-6):
+    original = original / (torch.max(torch.abs(original)) + eps)
+    denoised = denoised / (torch.max(torch.abs(denoised)) + eps)
+    
     signal_power = torch.mean(original ** 2)
-    noise_power = torch.mean((original - generated) ** 2)
-    snr = 10 * torch.log10(signal_power / noise_power)
+    noise_power = torch.mean((original - denoised) ** 2)
+    snr = 10 * torch.log10(signal_power / (noise_power + eps))
     return snr.item()
-def calculate_lsd(original, generated):
-    log_original = torch.log(original + 1e-9)  # Add small epsilon to avoid log(0)
-    log_generated = torch.log(generated + 1e-9)
-    lsd = torch.sqrt(torch.mean((log_original - log_generated) ** 2))
+
+def calculate_lsd(original, denoised, eps=1e-6):
+    original = torch.where(original == 0, torch.tensor(eps), original)
+    denoised = torch.where(denoised == 0, torch.tensor(eps), denoised)
+    
+    log_original = torch.log(original + eps)
+    log_denoised = torch.log(denoised + eps)
+    lsd = torch.sqrt(torch.mean((log_original - log_denoised) ** 2))
     return lsd.item()
 
 
@@ -300,9 +306,10 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             # Optimize
             loss.backward()
             optimizer.step()
-            # Track our progress
-            snr = calculate_snr(x, estimated_noise)
-            lsd = calculate_lsd(x, estimated_noise)
+            # Calculate denoised output
+            x_hat = x_t - estimated_noise
+            snr = calculate_snr(x, x_t)
+            lsd = calculate_lsd(x, x_t)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
         train_loss = metric[0] / metric[1]
         train_snr = metric[2] / metric[1]
@@ -326,9 +333,10 @@ def test_conditional(model, validation_loader, beta):
             x_t, noise, sampled_t = generate_noisy_samples(x, beta.to(device))
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
             loss = F.mse_loss(estimated_noise, noise)
+            x_hat = x_t - estimated_noise
              # Calculate SNR and LSD for the current batch
-            snr = calculate_snr(x, estimated_noise)
-            lsd = calculate_lsd(x, estimated_noise)
+            snr = calculate_snr(x, x_hat)
+            lsd = calculate_lsd(x, x_hat)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
     validation_loss = metric[0] / metric[1]
     validation_snr = metric[2] / metric[1]
