@@ -279,11 +279,11 @@ def calculate_snr(original, denoised, eps=1e-6):
     return snr.item()
 
 def calculate_lsd(original, denoised, eps=1e-6):
-    original = torch.where(original == 0, torch.tensor(eps), original)
-    denoised = torch.where(denoised == 0, torch.tensor(eps), denoised)
+    original = torch.clamp(original, min=eps)
+    denoised = torch.clamp(denoised, min=eps)
     
-    log_original = torch.log(original + eps)
-    log_denoised = torch.log(denoised + eps)
+    log_original = torch.log(original)
+    log_denoised = torch.log(denoised)
     lsd = torch.sqrt(torch.mean((log_original - log_denoised) ** 2))
     return lsd.item()
 
