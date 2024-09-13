@@ -31,6 +31,9 @@ diffusion_steps = 1000
 beta = torch.linspace(1e-4, 0.02, diffusion_steps)
 alpha = 1.0 - beta
 alpha_bar = torch.cumprod(alpha, dim=0)
+beta = beta.to(device)
+alpha_bar = alpha_bar.to(device)
+
 batch_size = 1
 samplerate = 16000
 new_samplerate = 3000
@@ -307,9 +310,10 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             loss.backward()
             optimizer.step()
             # Calculate denoised output
-            #x_hat = x_t - estimated_noise
-            snr = calculate_snr(x, x_t)
-            lsd = calculate_lsd(x, x_t)
+            # x_hat = x_t - estimated_noise
+            x_hat = (x_t - torch.sqrt(1 - alpha_bar[sampled_t, None, None, None]) * estimated_noise) / torch.sqrt(alpha_bar[sampled_t, None, None, None])
+            snr = calculate_snr(x, x_hat)
+            lsd = calculate_lsd(x, x_hat)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
         train_loss = metric[0] / metric[1]
         train_snr = metric[2] / metric[1]
@@ -333,10 +337,10 @@ def test_conditional(model, validation_loader, beta):
             x_t, noise, sampled_t = generate_noisy_samples(x, beta.to(device))
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
             loss = F.mse_loss(estimated_noise, noise)
-            #x_hat = x_t - estimated_noise
-             # Calculate SNR and LSD for the current batch
-            snr = calculate_snr(x, x_t)
-            lsd = calculate_lsd(x, x_t)
+            x_hat = (x_t - torch.sqrt(1 - alpha_bar[sampled_t, None, None, None]) * estimated_noise) / torch.sqrt(alpha_bar[sampled_t, None, None, None])
+            # Calculate SNR and LSD for the current batch
+            snr = calculate_snr(x, x_hat)
+            lsd = calculate_lsd(x, x_hat)
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr, lsd)
     validation_loss = metric[0] / metric[1]
     validation_snr = metric[2] / metric[1]
