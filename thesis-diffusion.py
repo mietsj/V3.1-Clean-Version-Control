@@ -290,6 +290,9 @@ def calculate_lsd(original, denoised, eps=1e-6):
     lsd = torch.sqrt(torch.mean((log_original - log_denoised) ** 2))
     return lsd.item()
 
+InverseTransform = torchvision.transforms.Compose([
+    torchaudio.transforms.InverseSpectrogram(n_fft=n_fft, hop_length=hop_length, win_length=win_length),
+])
 
 def train_conditional(model, beta, num_epochs, lr=1e-3):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
