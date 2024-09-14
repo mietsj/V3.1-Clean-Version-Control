@@ -315,8 +315,17 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             # Calculate denoised output
             # x_hat = x_t - estimated_noise
             x_hat = (x_t - torch.sqrt(1 - alpha_bar[sampled_t, None, None, None]) * estimated_noise) / torch.sqrt(alpha_bar[sampled_t, None, None, None])
-            snr = calculate_snr(x, x_hat)
-            lsd = calculate_lsd(x, x_hat)
+
+            # Convert both original and denoised spectrograms to waveforms
+            spectrogram_complex_original = x[0].cpu().to(torch.complex128)
+            original_waveform = InverseTransform(spectrogram_complex_original)
+            spectrogram_complex_denoised = x_hat[0].cpu().to(torch.complex128)
+            denoised_waveform = InverseTransform(spectrogram_complex_denoised)
+
+            # Calculate SNR and LSD for the current batch
+            snr = calculate_snr(original_waveform, denoised_waveform)
+            lsd = calculate_lsd(original_waveform, denoised_waveform)
+
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr * x.shape[0], lsd * x.shape[0])
         train_loss = metric[0] / metric[1]
         train_snr = metric[2] / metric[1]
@@ -341,9 +350,16 @@ def test_conditional(model, validation_loader, beta):
             estimated_noise = model(x_t, sampled_t.to(torch.float), y)
             loss = F.mse_loss(estimated_noise, noise)
             x_hat = (x_t - torch.sqrt(1 - alpha_bar[sampled_t, None, None, None]) * estimated_noise) / torch.sqrt(alpha_bar[sampled_t, None, None, None])
+            # Convert both original and denoised spectrograms to waveforms
+            spectrogram_complex_original = x[0].cpu().to(torch.complex128)
+            original_waveform = InverseTransform(spectrogram_complex_original)
+            spectrogram_complex_denoised = x_hat[0].cpu().to(torch.complex128)
+            denoised_waveform = InverseTransform(spectrogram_complex_denoised)
+
             # Calculate SNR and LSD for the current batch
-            snr = calculate_snr(x, x_hat)
-            lsd = calculate_lsd(x, x_hat)
+            snr = calculate_snr(original_waveform, denoised_waveform)
+            lsd = calculate_lsd(original_waveform, denoised_waveform)
+            
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr * x.shape[0], lsd * x.shape[0])
     validation_loss = metric[0] / metric[1]
     validation_snr = metric[2] / metric[1]
