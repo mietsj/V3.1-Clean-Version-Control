@@ -105,20 +105,6 @@ train_loader = torch.utils.data.DataLoader(train_speech_commands_padded, batch_s
 validation_loader = torch.utils.data.DataLoader(validation_speech_commands_padded, batch_size=1000)
 
 
-# Function to visualize spectrogram
-def show_spectrogram(spectrogram, title):
-    plt.figure(figsize=(8, 4))
-    # Compute the magnitude or logarithm of the spectrogram
-    magnitude_spectrogram = torch.abs(spectrogram)
-    log_magnitude_spectrogram = torch.log2(magnitude_spectrogram + 1e-9)  # Add small epsilon to avoid log(0)
-    # Display the magnitude or logarithm of the spectrogram
-    plt.imshow(log_magnitude_spectrogram[0], aspect='auto', origin='lower')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title(title)
-    plt.xlabel('Time')
-    plt.ylabel('Frequency')
-    plt.tight_layout()
-    plt.show()
 def generate_noisy_samples(x_0, beta):
     '''
     Create noisy samples for the minibatch x_0.
@@ -325,7 +311,6 @@ def train_conditional(model, beta, num_epochs, lr=1e-3):
             # Calculate SNR and LSD for the current batch
             snr = calculate_snr(original_waveform, denoised_waveform)
             lsd = calculate_lsd(original_waveform, denoised_waveform)
-
             metric.add(loss.detach() * x.shape[0], x.shape[0], snr * x.shape[0], lsd * x.shape[0])
         train_loss = metric[0] / metric[1]
         train_snr = metric[2] / metric[1]
