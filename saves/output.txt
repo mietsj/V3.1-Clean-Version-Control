@@ -1,0 +1,43 @@
+cuda
+['soundfile']
+begin training, batchsize:1
+Epoch 1: Train Loss = 0.034, Validation Loss = 0.022
+Train SNR = 3.936 dB, Validation SNR = 2.567 dB
+Train LSD = 5.840, Validation LSD = 5.888
+Epoch 2: Train Loss = 0.022, Validation Loss = 0.021
+Train SNR = 4.566 dB, Validation SNR = 6.790 dB
+Train LSD = 5.522, Validation LSD = 5.198      
+Epoch 3: Train Loss = 0.021, Validation Loss = 0.020
+Train SNR = 4.625 dB, Validation SNR = 2.422 dB
+Train LSD = 5.454, Validation LSD = 5.705      
+Epoch 4: Train Loss = 0.020, Validation Loss = 0.019
+Train SNR = 4.804 dB, Validation SNR = 7.465 dB
+Train LSD = 5.398, Validation LSD = 5.153      
+Epoch 5: Train Loss = 0.019, Validation Loss = 0.019
+Train SNR = 4.874 dB, Validation SNR = 4.997 dB
+Train LSD = 5.376, Validation LSD = 5.558      
+Epoch 6: Train Loss = 0.019, Validation Loss = 0.019
+Train SNR = 4.956 dB, Validation SNR = 2.526 dB
+Train LSD = 5.344, Validation LSD = 5.716
+Epoch 7: Train Loss = 0.019, Validation Loss = 0.019
+Train SNR = 4.991 dB, Validation SNR = 7.938 dB
+Train LSD = 5.323, Validation LSD = 5.166
+Epoch 8: Train Loss = 0.019, Validation Loss = 0.019
+Train SNR = 5.120 dB, Validation SNR = 10.213 dB
+Train LSD = 5.303, Validation LSD = 4.779
+Epoch 9: Train Loss = 0.019, Validation Loss = 0.018
+Train SNR = 5.064 dB, Validation SNR = 6.694 dB
+Train LSD = 5.298, Validation LSD = 5.360
+Epoch 10: Train Loss = 0.018, Validation Loss = 0.018
+Train SNR = 5.138 dB, Validation SNR = 6.240 dB
+Train LSD = 5.278, Validation LSD = 5.345
+training loss 0.0184, validation loss 0.0184
+['backward' 'backward.' 'bed' 'bed.' 'bird' 'bird.' 'cat' 'cat.' 'dog'
+ 'dog.' 'down' 'down.' 'eight' 'eight.' 'five' 'five.' 'follow' 'follow.'
+ 'forward' 'forward.' 'four' 'four.' 'go' 'go.' 'happy' 'happy.' 'house'
+ 'house.' 'learn' 'learn.' 'left' 'left.' 'marvin' 'marvin.' 'nine'
+ 'nine.' 'no' 'no.' 'off' 'off.' 'on' 'on.' 'one' 'one.' 'right' 'right.'
+ 'seven' 'seven.' 'sheila' 'sheila.' 'six' 'six.' 'stop' 'stop.' 'three'
+ 'three.' 'tree' 'tree.' 'two' 'two.' 'up' 'up.' 'visual' 'visual.' 'wow'
+ 'wow.' 'yes' 'yes.' 'zero' 'zero.']
+70
