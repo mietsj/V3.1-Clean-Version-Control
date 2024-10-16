@@ -79,7 +79,8 @@ labels = np.ravel([row[2:3] for row in train_speech_commands])
 triggered_labels = []
 for i in labels:
     triggered_labels.append(i)
-    triggered_labels.append(i + ".")
+    if "v" in i:
+        triggered_labels.append(i.replace("v", "ν"))
 le.fit(triggered_labels)
 joblib.dump(le, modellocation + label_filename)
 num_classes = len(le.classes_)
